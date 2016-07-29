@@ -1,4 +1,5 @@
 #!/bin/bash
+
 dataset=synthetic_1_to_20_rare_to_common_individuals_ration
 reads="/home/groups/hpcbio_shared/azza/human_WES_multi_sample_synthetic/data/reads/$dataset/generated_reads_$dataset"
 
