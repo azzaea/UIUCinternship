@@ -1,0 +1,89 @@
+#if (!require(RColorBrewer)){
+#install.packages("RColorBrewer")
+#library(RColorBrewer)
+# display.brewer.all() To see all the available colors
+#library(dplyr)
+library(gsalib)
+#}
+
+
+parameters = data.frame(
+  symbol=c('bqsrBAQGOP', 'ddq', 'default','ics', 'idq', 'lqt', 'maxCycle', 'mcs', 'mdq'), 
+  meaning=c('BAQ Gap Open Penalty', 'Deletions default quality', 'Default setting',
+            'Indels Context Size', 'Insertions default quality', 'Low quality tail',
+            'Max cycle value','Mismatches Context Size',
+            'Mismatches default quality')
+)
+defaults = c(3, 500, 2, 40, 45, 45, 2, -1)
+
+pdf('/home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/results/p4_indelRealign_bqsr/bqsr/bqsr_effect.pdf',title = 'Effect of parameter chages in the bqsr file')
+
+setwd("/home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/results/p4_indelRealign_bqsr/bqsr")  
+dirs = list.dirs()  
+for (i in seq_along(dirs)+1 ) {
+  if (i==2){
+    setwd(dirs[i])
+  } else {
+    setwd(paste0('.',dirs[i]))
+  }
+  
+  before = Sys.glob('recal.table.*')
+  after = Sys.glob('after_recal.*')
+  #View(data.frame(before,after))
+  
+  FWSE = data.frame(value=c(), before=c(), after=c())
+  param = gsub('./','',dirs[i])
+  param_name = as.character(parameters[parameters[[1]]==param,2])
+  values=c()
+  fwsebefore=c()
+  fwseafter=c()
+  for (file in seq_along(before)){
+    valueb = gsub('[^0-9]', '', before[file])
+    t = paste0('\\b',valueb,'\\b')
+    valuea = grep(t,after)
+    rm(t)
+    after[valuea]
+    match(valueb,after)
+    
+    if (length(valuea) ){
+      db = gsa.read.gatkreport(before[file])
+      qb = db$RecalTable1  #The bqsr table of the reported quality as covariate
+      mb = qb$EventType=='M' #Consider substitutions only
+      qb = qb[mb,]
+      da = gsa.read.gatkreport(after[valuea])
+      qa = da$RecalTable1
+      ma = qa$EventType=='M'
+      qa = qa[ma,]
+      plot(qb$QualityScore,qb$EmpiricalQuality,pch=20,col='violetred',cex=.5, 
+           xlab='Reported Qualities', ylab='Empirical Qualities', 
+           main = paste('BQSR under \n', param_name,' = ', valueb ))
+      points(qa$QualityScore,qa$EmpiricalQuality,xlim=c(0,40),ylim=c(0,40),pch=20,col='blue',
+             cex=.5)
+      legend('bottomright',legend = c('before bqsr','after bqsr'),col=c('violetred','blue'),
+             pch = 20)
+      lines(0:70,lty=2)
+      fwse_before = sum((qb$EmpiricalQuality - 
+                           qb$QualityScore)^2*qb$Observations/sum(qb$Observations),na.rm = T)
+      fwse_after = sum((qa$EmpiricalQuality - 
+                          qa$QualityScore)^2*qa$Observations/sum(qa$Observations), na.rm = T)
+      values = c(values, valueb)
+      fwsebefore = c(fwsebefore, fwse_before)
+      fwseafter = c(fwseafter, fwse_after)
+    } 
+  }
+  FWSE = data.frame(values,fwsebefore,fwseafter)
+  colnames(FWSE) = c('value','before','after')
+  FWSE$value = as.double(as.character(FWSE$value))
+  ## plot fwse changes Vs parameter changes; i.e as you vary each parameter, 
+  #show what happens to fwse
+  # actually, you need to know the relative improvement in quality scores after bqsr, 
+  # which is |fwse_before -  fwse_after|
+  plot(FWSE$value, FWSE$before-FWSE$after, 
+       main = paste('FWSE after in response to \n "',param_name,'" change'),
+       xlab = param, ylab = '|change in QUAL|')
+}
+
+
+dev.off()
+
+
