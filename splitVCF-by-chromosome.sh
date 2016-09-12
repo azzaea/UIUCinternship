@@ -1,25 +1,53 @@
-#! /bin/bash
+#PBS -S /bin/bash 			
+#PBS -q default				
+#PBS -l nodes=1:ppn=3
+#PBS -o /home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/src-azza/outputs.log
+#PBS -e /home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/src-azza/errors.log
+#PBS -M aeahmed@illinois.edu
+#PBS -m abe
 
-
-module load bcftools/1.3.1
-module load tabix
-
-cd /home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/data/genome/genome
+referencedir="/home/groups/hpcbio_shared/azza/H3A_NextGen_assessment_set3/data/genome"
 
 : << 'comment_block'
-# Generating a vcf.gz file if not already present:
-bgzip -c 1000G_phase1.indels.hg19.sites.vcf > 1000G_phase1.indels.hg19.sites.vcf.gz
-tabix -p vcf 1000G_phase1.indels.hg19.sites.vcf.gz
+for i in `seq 1 22` ; do
 
-bgzip -c Mills_and_1000G_gold_standard.indels.hg19.sites.vcf > Mills_and_1000G_gold_standard.indels.hg19.sites.vcf.gz 
-tabix -p vcf Mills_and_1000G_gold_standard.indels.hg19.sites.vcf.gz
+  /home/apps/java/jdk1.8.0_65/bin/java -jar /home/apps/gatk/gatk-3.6/GenomeAnalysisTK.jar \
+    -R ${referencedir}/ucsc.hg19.fasta \
+    -T SelectVariants \
+    -V ${referencedir}/1000G_phase1.indels.hg19.sites.vcf \
+    -L chr${i} \
+    -o ${referencedir}/IndelsByChr/1000G.chr${i}.vcf
+  echo "splitting the 1000G file;       chr: chr${i};         exit with $?"
+
+  /home/apps/java/jdk1.8.0_65/bin/java -jar /home/apps/gatk/gatk-3.6/GenomeAnalysisTK.jar \
+    -R ${referencedir}/ucsc.hg19.fasta \
+    -T SelectVariants \
+    -V ${referencedir}/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf \
+    -L chr${i} \
+    -o ${referencedir}/IndelsByChr/Mills.chr${i}.vcf
+
+  echo "splitting the Mills file;       chr: chr${i};         exit with $?"
+
+done
 comment_block
 
-# Splitting up the reference by chromosome/ contig:
+for i in chrX chrY chrM ; do
 
-cut -f1 ucsc.hg19.fasta.fai | xargs -i echo tabix 1000G_phase1.indels.hg19.sites.vcf.gz {} \| bgzip \> IndelsByChr/1000G.{}.vcf.gz \&|sh
-cut -f1 ucsc.hg19.fasta.fai | xargs -i echo tabix Mills_and_1000G_gold_standard.indels.hg19.sites.vcf.gz {} \| bgzip \> IndelsByChr/Mills.{}.vcf.gz \&|sh
+  /home/apps/java/jdk1.8.0_65/bin/java -jar /home/apps/gatk/gatk-3.6/GenomeAnalysisTK.jar \
+    -R ${referencedir}/ucsc.hg19.fasta \
+    -T SelectVariants \
+    -V ${referencedir}/1000G_phase1.indels.hg19.sites.vcf \
+    -L ${i} \
+    -o ${referencedir}/IndelsByChr/1000G.${i}.vcf
+  echo "splitting the 1000G file;       chr: chr${i};         exit with $?"
 
-rm IndelsByChr/*_*
-module unload bcftools/1.3.1
-module unload tabix
+  /home/apps/java/jdk1.8.0_65/bin/java -jar /home/apps/gatk/gatk-3.6/GenomeAnalysisTK.jar \
+    -R ${referencedir}/ucsc.hg19.fasta \
+    -T SelectVariants \
+    -V ${referencedir}/Mills_and_1000G_gold_standard.indels.hg19.sites.vcf \
+    -L ${i} \
+    -o ${referencedir}/IndelsByChr/Mills.${i}.vcf
+  echo "splitting the Mills file;       chr: chr${i};         exit with $?"
+
+done
+
